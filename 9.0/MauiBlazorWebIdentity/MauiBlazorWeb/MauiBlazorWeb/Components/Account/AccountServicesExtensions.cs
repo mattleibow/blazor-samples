@@ -6,20 +6,20 @@ public static class AccountServicesExtensions
 {
     public static IServiceCollection AddAccountServices(this IServiceCollection services, string routeGroupEndpoint, Action<IHttpClientBuilder>? configureClient = null)
     {
-        // Register a custom AuthenticationStateProvider
+        // Register the custom AuthenticationStateProvider
         services.AddSingleton<MauiAuthenticationStateProvider>();
 
         // Use the custom provider when the app needs an AuthenticationStateProvider
         services.AddSingleton<AuthenticationStateProvider>(sp => sp.GetRequiredService<MauiAuthenticationStateProvider>());
 
+        // Use the custom provider when the app needs an ISignInManager
+        services.AddSingleton<ISignInManager>(sp => sp.GetRequiredService<MauiAuthenticationStateProvider>());
+
         // Register the authentication handler for HttpClient
-        services.AddTransient<AuthorizationMessageHandler>();
+        services.AddTransient<IdentityAuthorizationMessageHandler>();
 
-        // Register the sign in service used by the AuthenticationStateProvider
-        services.AddScoped<SignInService>();
-
-        // Configure Typed HttpClient for SignInService
-        var clientBuilder = services.AddHttpClient<SignInService>(client =>
+        // Configure Typed HttpClient for IdentityApiClient
+        var clientBuilder = services.AddHttpClient<IdentityApiClient>(client =>
             {
                 client.BaseAddress = new Uri(routeGroupEndpoint);
             });
@@ -28,8 +28,8 @@ public static class AccountServicesExtensions
         return services;
     }
 
-    public static IHttpClientBuilder AddAuthorizationHandler(this IHttpClientBuilder builder)
+    public static IHttpClientBuilder AddIdentityAuthorizationHandler(this IHttpClientBuilder builder)
     {
-        return builder.AddHttpMessageHandler<AuthorizationMessageHandler>();
+        return builder.AddHttpMessageHandler<IdentityAuthorizationMessageHandler>();
     }
 }

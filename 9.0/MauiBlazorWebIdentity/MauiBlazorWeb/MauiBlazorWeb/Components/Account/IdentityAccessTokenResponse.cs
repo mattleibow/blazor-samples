@@ -3,7 +3,7 @@ namespace MauiBlazorWeb.Components.Account;
 /// <summary>
 /// The JSON data transfer object for the bearer token response typically found in "/login" and "/refresh" responses.
 /// </summary>
-public sealed class AccessTokenResponse
+public sealed class IdentityAccessTokenResponse
 {
     /// <summary>
     /// The value is always "Bearer" which indicates this response provides a "Bearer" token

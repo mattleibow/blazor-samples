@@ -6,13 +6,13 @@ namespace MauiBlazorWeb.Components.Account;
 /// <summary>
 /// DelegatingHandler that automatically adds authentication headers to HTTP requests.
 /// </summary>
-public class AuthorizationMessageHandler(MauiAuthenticationStateProvider authProvider) : DelegatingHandler
+public class IdentityAuthorizationMessageHandler(MauiAuthenticationStateProvider authProvider) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        var accessTokenInfo = await authProvider.GetAccessTokenInfoAsync();
+        var accessTokenInfo = await authProvider.GetAccessTokenResponseAsync();
 
         if (accessTokenInfo is null)
         {

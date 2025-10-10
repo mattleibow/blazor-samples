@@ -50,7 +50,7 @@ public static class MauiProgram
                 client.BaseAddress = new Uri($"{_baseUrl}api/");
             })
             .ConfigurePrimaryHttpMessageHandler<LocalhostTrustingMessageHandler>()
-            .AddAuthorizationHandler();
+            .AddIdentityAuthorizationHandler();
 
         // Register needed elements for authentication:
         builder.Services.AddCascadingAuthenticationState();

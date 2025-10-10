@@ -4,7 +4,7 @@
 @using Microsoft.Extensions.Logging
 
 @inject ILogger<Login> Logger
-@inject MauiAuthenticationStateProvider SignInManager
+@inject ISignInManager SignInManager
 @inject NavigationManager NavigationManager
 
 <PageTitle>Log in</PageTitle>
@@ -98,15 +98,9 @@
             return;
         }
 
-        await Task.Delay(1000);
+        var status = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe);
 
-        errorMessage = "gotcha";
-
-        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe);
-
-        @* var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe);
-
-        if (result.IsSuccess)
+        if (status.Succeeded)
         {
             Logger.LogInformation("User logged in.");
             RedirectTo(ReturnUrl);
@@ -114,9 +108,7 @@
         else
         {
             errorMessage = "Error: Invalid login attempt.";
-        } *@
-
-        errorMessage = "done";
+        }
     }
 
     private void RedirectTo(string? uri)

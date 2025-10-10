@@ -11,7 +11,7 @@ namespace MauiBlazorWeb.Components.Account;
 /// The class handles user sign in, sign out, and token validation, including refreshing tokens when they are close to expiration.
 /// It uses secure storage to save and retrieve tokens, ensuring that users do not need to log in every time.
 /// </summary>
-public partial class MauiAuthenticationStateProvider(SignInService signInService) : AuthenticationStateProvider
+public partial class MauiAuthenticationStateProvider(IdentityApiClient identityApiClient) : AuthenticationStateProvider, ISignInManager
 {
     //TODO: Place this in AppSettings or Client config file
     private const string AuthenticationType = "Custom authentication";
@@ -24,8 +24,15 @@ public partial class MauiAuthenticationStateProvider(SignInService signInService
 
     private AccessTokenInfo? _accessToken;
 
-    public AuthenticationStatus AuthenticationStatus { get; private set; } = AuthenticationStatus.None;
+    private SignInResult? _signInResult;
 
+    /// <summary>
+    /// Gets the current authentication state.
+    /// </summary>
+    /// <remarks>
+    /// If the current state is the default (unauthenticated) state, it attempts to
+    /// create the authentication state from secure storage.
+    /// </remarks>
     public override Task<AuthenticationState> GetAuthenticationStateAsync()
     {
         if (_currentAuthState != _defaultAuthState)
@@ -34,43 +41,40 @@ public partial class MauiAuthenticationStateProvider(SignInService signInService
         }
 
         _currentAuthState = CreateAuthenticationStateFromStorageAsync();
+
         NotifyAuthenticationStateChanged(_currentAuthState);
 
         return _currentAuthState;
     }
 
-    public async Task<AccessTokenResponse?> GetAccessTokenInfoAsync()
+    /// <summary>
+    /// Gets the current access token response.
+    /// </summary>
+    /// <remarks>
+    /// If the access token is expired or about to expire, it attempts to refresh it.
+    /// If the token cannot be refreshed, it signs the user out.
+    /// </remarks>
+    public async Task<IdentityAccessTokenResponse?> GetAccessTokenResponseAsync()
     {
         if (await UpdateAndValidateAccessTokenAsync())
         {
             return _accessToken?.Response;
         }
 
-        SignOut();
+        await ((ISignInManager)this).SignOutAsync();
+
         return null;
     }
 
-    public void SignOut()
-    {
-        AuthenticationStatus = AuthenticationStatus.None;
-
-        _currentAuthState = _defaultAuthState;
-        _accessToken = null;
-
-        SecureTokenStorage.Clear();
-
-        NotifyAuthenticationStateChanged(_defaultAuthState);
-    }
-
-    public async Task<AuthenticationStatus> PasswordSignInAsync(string userName, string password, bool isPersistent)
+    async Task<SignInResult> ISignInManager.PasswordSignInAsync(string userName, string password, bool isPersistent)
     {
         _currentAuthState = SignInAsyncCore(userName, password, isPersistent);
 
+        await _currentAuthState;
+
         NotifyAuthenticationStateChanged(_currentAuthState);
 
-        await _currentAuthState;
-        
-        return AuthenticationStatus;
+        return _signInResult ?? SignInResult.Failed;
 
         async Task<AuthenticationState> SignInAsyncCore(string userName, string password, bool isPersistent)
         {
@@ -79,19 +83,32 @@ public partial class MauiAuthenticationStateProvider(SignInService signInService
         }
     }
 
+    Task ISignInManager.SignOutAsync()
+    {
+        _signInResult = null;
+        _currentAuthState = _defaultAuthState;
+        _accessToken = null;
+        SecureTokenStorage.Clear();
+
+        NotifyAuthenticationStateChanged(_defaultAuthState);
+
+        return Task.CompletedTask;
+    }
+
     private async Task<ClaimsPrincipal> SignInWithProviderAsync(string userName, string password, bool isPersistent)
     {
         var authenticatedUser = _defaultUser;
-        AuthenticationStatus = AuthenticationStatus.None;
+        _signInResult = null;
 
         try
         {
-            var response = await signInService.SignInAsync(userName, password);
+            var response = await identityApiClient.PostLoginAsync(userName, password);
 
             _accessToken = new AccessTokenInfo(
                 userName,
                 response,
-                DateTimeOffset.UtcNow.AddSeconds(response.ExpiresIn));
+                DateTimeOffset.UtcNow.AddSeconds(response.ExpiresIn),
+                isPersistent);
 
             if (isPersistent)
             {
@@ -101,11 +118,11 @@ public partial class MauiAuthenticationStateProvider(SignInService signInService
             }
 
             authenticatedUser = CreateAuthenticatedUser(userName);
-            AuthenticationStatus = AuthenticationStatus.Success;
+            _signInResult = SignInResult.Success;
         }
-        catch (Exception ex)
+        catch
         {
-            AuthenticationStatus = AuthenticationStatus.Failed(ex.Message ?? "Sign in failed.");
+            _signInResult = SignInResult.Failed;
         }
 
         return authenticatedUser;
@@ -114,12 +131,12 @@ public partial class MauiAuthenticationStateProvider(SignInService signInService
     private async Task<AuthenticationState> CreateAuthenticationStateFromStorageAsync()
     {
         var authenticatedUser = _defaultUser;
-        AuthenticationStatus = AuthenticationStatus.None;
+        _signInResult = null;
 
         if (await UpdateAndValidateAccessTokenAsync())
         {
             authenticatedUser = CreateAuthenticatedUser(_accessToken!.UserName);
-            AuthenticationStatus = AuthenticationStatus.Success;
+            _signInResult = SignInResult.Success;
         }
 
         return new AuthenticationState(authenticatedUser);
@@ -157,7 +174,7 @@ public partial class MauiAuthenticationStateProvider(SignInService signInService
             // since refresh token expiration is unknown (typically 14 days) and we want to avoid timing issues.
             if (futureTime >= _accessToken.ExpiresAt)
             {
-                return await RefreshAccessTokenAsync(_accessToken.UserName, _accessToken.Response.RefreshToken);
+                return await RefreshAccessTokenAsync(_accessToken.UserName, _accessToken.Response.RefreshToken, _accessToken.IsPersistent);
             }
 
             return true;
@@ -169,7 +186,7 @@ public partial class MauiAuthenticationStateProvider(SignInService signInService
         }
     }
 
-    private async Task<bool> RefreshAccessTokenAsync(string userName, string refreshToken)
+    private async Task<bool> RefreshAccessTokenAsync(string userName, string refreshToken, bool isPersistent)
     {
         if (string.IsNullOrEmpty(refreshToken))
         {
@@ -178,16 +195,20 @@ public partial class MauiAuthenticationStateProvider(SignInService signInService
 
         try
         {
-            var response = await signInService.RefreshSignInAsync(refreshToken);
+            var response = await identityApiClient.PostRefreshAsync(refreshToken);
 
             _accessToken = new AccessTokenInfo(
                 userName,
                 response,
-                DateTimeOffset.UtcNow.AddSeconds(response.ExpiresIn));
+                DateTimeOffset.UtcNow.AddSeconds(response.ExpiresIn),
+                isPersistent);
 
-            // Save token to secure storage so the user doesn't have to sign in every time
-            var tokenString = JsonSerializer.Serialize(_accessToken, MauiAuthenticationStateProviderContext.Default.AccessTokenInfo);
-            await SecureTokenStorage.SetAsync(tokenString);
+            if (isPersistent)
+            {
+                // Save token to secure storage so the user doesn't have to sign in every time
+                var tokenString = JsonSerializer.Serialize(_accessToken, MauiAuthenticationStateProviderContext.Default.AccessTokenInfo);
+                await SecureTokenStorage.SetAsync(tokenString);
+            }
 
             return true;
         }
@@ -207,10 +228,11 @@ public partial class MauiAuthenticationStateProvider(SignInService signInService
 
     private record AccessTokenInfo(
         string UserName,
-        AccessTokenResponse Response,
-        DateTimeOffset ExpiresAt);
+        IdentityAccessTokenResponse Response,
+        DateTimeOffset ExpiresAt,
+        bool IsPersistent);
 
-    [JsonSerializable(typeof(AccessTokenResponse))]
+    [JsonSerializable(typeof(IdentityAccessTokenResponse))]
     [JsonSerializable(typeof(AccessTokenInfo))]
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
     private partial class MauiAuthenticationStateProviderContext : JsonSerializerContext

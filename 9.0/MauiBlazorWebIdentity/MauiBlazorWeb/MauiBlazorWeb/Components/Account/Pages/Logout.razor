@@ -1,12 +1,13 @@
 ﻿@page "/Account/Logout"
+@using System.Threading.Tasks
 @inject NavigationManager navigationManager
-@inject MauiAuthenticationStateProvider AuthStateProvider
+@inject ISignInManager SignInManager
 
 <div class="loader loader-bouncing"><span>Redirecting...</span></div>
 @code{
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        AuthStateProvider.SignOut();
+        await SignInManager.SignOutAsync();
         navigationManager.NavigateTo("Account/Login");
     }
 }
