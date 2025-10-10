@@ -5,7 +5,7 @@
 
 @inject ILogger<Login> Logger
 @inject ISignInManager SignInManager
-@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
 
 <PageTitle>Log in</PageTitle>
 
@@ -103,25 +103,12 @@
         if (status.Succeeded)
         {
             Logger.LogInformation("User logged in.");
-            RedirectTo(ReturnUrl);
+            RedirectManager.RedirectTo(ReturnUrl);
         }
         else
         {
             errorMessage = "Error: Invalid login attempt.";
         }
-    }
-
-    private void RedirectTo(string? uri)
-    {
-        uri ??= "";
-
-        // Prevent open redirects.
-        if (!Uri.IsWellFormedUriString(uri, UriKind.Relative))
-        {
-            uri = NavigationManager.ToBaseRelativePath(uri);
-        }
-
-        NavigationManager.NavigateTo(uri);
     }
 
     private sealed class InputModel
