@@ -239,31 +239,17 @@ public partial class MauiAuthenticationStateProvider(IdentityApiClient identityA
     {
     }
 
-    // private static class SecureTokenStorage
-    // {
-    //     private const string SecureStorageKey = "access_token";
-
-    //     public static void Clear() =>
-    //         SecureStorage.Default.Remove(SecureStorageKey);
-
-    //     public static async Task SetAsync(string value) =>
-    //         await SecureStorage.Default.SetAsync(SecureStorageKey, value);
-
-    //     public static async Task<string?> GetAsync() =>
-    //         await SecureStorage.Default.GetAsync(SecureStorageKey);
-    // }
-
     private static class SecureTokenStorage
     {
         private const string SecureStorageKey = "access_token";
 
         public static void Clear() =>
-            Preferences.Default.Remove(SecureStorageKey);
+            SecureStorage.Default.Remove(SecureStorageKey);
 
         public static async Task SetAsync(string value) =>
-            Preferences.Default.Set(SecureStorageKey, value);
+            await SecureStorage.Default.SetAsync(SecureStorageKey, value);
 
         public static async Task<string?> GetAsync() =>
-            Preferences.Default.Get(SecureStorageKey, "");
+            await SecureStorage.Default.GetAsync(SecureStorageKey);
     }
 }

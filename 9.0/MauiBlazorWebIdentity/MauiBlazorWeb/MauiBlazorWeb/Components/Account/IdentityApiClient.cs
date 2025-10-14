@@ -74,13 +74,71 @@ public partial class IdentityApiClient(HttpClient httpClient)
         }
     }
 
+    /// <summary>
+    /// Posts a forgot password request to the /ForgotPassword endpoint with the provided email.
+    /// </summary>
+    /// <param name="email">The user's email address</param>
+    /// <exception cref="Exception">Throws exception if the forgot password request fails or server error occurs</exception>
+    public async Task PostForgotPasswordAsync(string email)
+    {
+        try
+        {
+            var response = await httpClient.PostAsJsonAsync(
+                "forgotPassword",
+                new ForgotPasswordRequest(email),
+                IdentityApiClientContext.Default.ForgotPasswordRequest);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception("Forgot password request failed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error during forgot password request: {ex}");
+            throw new Exception("Server error during forgot password request.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Posts a resend confirmation email request to the /ResendConfirmationEmail endpoint with the provided email.
+    /// </summary>
+    /// <param name="email">The user's email address</param>
+    /// <exception cref="Exception">Throws exception if the resend confirmation email request fails or server error occurs</exception>
+    public async Task PostResendConfirmationEmailAsync(string email)
+    {
+        try
+        {
+            var response = await httpClient.PostAsJsonAsync(
+                "resendConfirmationEmail",
+                new ResendConfirmationEmailRequest(email),
+                IdentityApiClientContext.Default.ResendConfirmationEmailRequest);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception("Resend confirmation email request failed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error during resend confirmation email request: {ex}");
+            throw new Exception("Server error during resend confirmation email request.", ex);
+        }
+    }
+
     private sealed record LoginRequest(string Email, string Password);
 
     private sealed record RefreshTokenRequest(string RefreshToken);
 
+    private sealed record ForgotPasswordRequest(string Email);
+
+    private sealed record ResendConfirmationEmailRequest(string Email);
+
+    [JsonSerializable(typeof(ForgotPasswordRequest))]
+    [JsonSerializable(typeof(IdentityAccessTokenResponse))]
     [JsonSerializable(typeof(LoginRequest))]
     [JsonSerializable(typeof(RefreshTokenRequest))]
-    [JsonSerializable(typeof(IdentityAccessTokenResponse))]
+    [JsonSerializable(typeof(ResendConfirmationEmailRequest))]
     [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
     private partial class IdentityApiClientContext : JsonSerializerContext
     {
